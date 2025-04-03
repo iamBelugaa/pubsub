@@ -30,7 +30,7 @@ package main
 import (
 	"fmt"
 	"sync"
-  "github.com/iamNilotpal/pubsub/pubsub"
+	"github.com/iamNilotpal/pubsub/pubsub"
 )
 
 func main() {
