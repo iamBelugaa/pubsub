@@ -5,15 +5,15 @@ import (
 )
 
 type PubSub struct {
-	closed    bool
-	mu        sync.RWMutex
-	listeners map[string][]chan string
+	closed        bool
+	mu            sync.RWMutex
+	subscriptions map[string][]chan string
 }
 
 func NewPubSub() *PubSub {
 	return &PubSub{
-		mu:        sync.RWMutex{},
-		listeners: make(map[string][]chan string),
+		mu:            sync.RWMutex{},
+		subscriptions: make(map[string][]chan string),
 	}
 }
 
@@ -22,9 +22,9 @@ func (ps *PubSub) Subscribe(topic string) <-chan string {
 	defer ps.mu.Unlock()
 
 	ch := make(chan string, 1)
-	channels := ps.listeners[topic]
+	channels := ps.subscriptions[topic]
 
-	ps.listeners[topic] = append(channels, ch)
+	ps.subscriptions[topic] = append(channels, ch)
 	return ch
 }
 
@@ -36,7 +36,7 @@ func (ps *PubSub) Publish(topic, msg string) {
 		return
 	}
 
-	channels := ps.listeners[topic]
+	channels := ps.subscriptions[topic]
 	for _, ch := range channels {
 		ch <- msg
 	}
@@ -52,7 +52,7 @@ func (ps *PubSub) Close() {
 
 	ps.closed = true
 
-	for _, channels := range ps.listeners {
+	for _, channels := range ps.subscriptions {
 		for _, ch := range channels {
 			close(ch)
 		}
