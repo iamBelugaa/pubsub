@@ -1,4 +1,4 @@
-package main
+package pubsub
 
 import (
 	"sync"
@@ -57,54 +57,4 @@ func (ps *PubSub) Close() {
 			close(ch)
 		}
 	}
-}
-
-func main() {
-	pubsub := NewPubSub()
-	var wg sync.WaitGroup
-
-	devopsChan := pubsub.Subscribe("devops")
-	golangChan := pubsub.Subscribe("golang")
-	kubernetesChan := pubsub.Subscribe("kubernetes")
-
-	wg.Add(3)
-
-	go func() {
-		defer wg.Done()
-
-		for msg := range devopsChan {
-			println("Message :", msg)
-		}
-
-		println("Devops channel closed")
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		for msg := range golangChan {
-			println("Message :", msg)
-		}
-
-		println("Golang channel closed")
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		for msg := range kubernetesChan {
-			println("Message :", msg)
-		}
-
-		println("Kubernetes channel closed")
-	}()
-
-	pubsub.Publish("golang", "This is a PubSub implementation using channels.")
-	pubsub.Publish("devops", "DevOps Teams message.")
-	pubsub.Publish("kubernetes", "Kubernetes is awesome.")
-
-	pubsub.Close()
-	pubsub.Publish("kubernetes", "k8s is so cool.")
-
-	wg.Wait()
 }
