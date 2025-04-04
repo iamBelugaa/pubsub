@@ -25,27 +25,15 @@ type config struct {
 	channelSize int // Defines the buffer size for subscriber channels.
 }
 
-// Option defines an interface for applying configuration options
-// to the PubSub system.
-type Option interface {
-	apply(*config) // Method to apply the option to the given configuration.
-}
-
-// channelSizeOption is a specific implementation of Option,
-// used to configure the size of the channels for subscribers.
-type channelSizeOption struct {
-	size int // Buffer size for subscriber channels.
-}
-
-// apply modifies the configuration by setting the channel size.
-func (c channelSizeOption) apply(cfg *config) {
-	if c.size > 0 {
-		cfg.channelSize = c.size
-	}
-}
+// Option is a function type that modifies the PubSub system's configuration.
+type Option func(*config)
 
 // WithChannelSize provides a functional option to set the size
 // of the subscriber channels in the PubSub system.
 func WithChannelSize(size int) Option {
-	return channelSizeOption{size: size}
+	return func(c *config) {
+		if size > 0 {
+			c.channelSize = size
+		}
+	}
 }
