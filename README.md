@@ -1,112 +1,47 @@
-# 📢 Go PubSub
+# Go PubSub
 
-A lightweight, in-memory **Publish-Subscribe (PubSub) System** written in Go
-using **channels**. This library allows multiple subscribers to listen to topics
-and receive messages asynchronously.
+A lightweight, in-memory Publish-Subscribe (PubSub) system written in Go
+leveraging Go's powerful concurrency model with channels. This library enables
+multiple subscribers to listen to topics and receive messages asynchronously.
 
-## 🚀 Features
+## Features
 
-- Simple and efficient **PubSub** implementation using Go's concurrency model.
-- Supports **multiple subscribers** per topic.
-- **Graceful shutdown** to close all channels safely.
-- Easy integration into **web applications** and **microservices**.
+- Simple and efficient PubSub implementation built on Go's concurrency
+  primitives
+- Support for multiple subscribers per topic
+- Structured message delivery with topic information included
+- Thread-safe operations with proper locking mechanisms
+- Graceful shutdown capabilities for safe channel closure
+- Easy integration into web applications and microservices
 
-## 📦 Installation
+## Installation
 
 ```sh
-go get "github.com/iamNilotpal/pubsub/pubsub"
+go get github.com/iamNilotpal/pubsub
 ```
 
-## 📖 Usage
+## Key Concepts
 
-### **1️⃣ Basic Example**
+### Message Structure
 
-This example demonstrates subscribing to topics, publishing messages, and
-handling graceful shutdown.
+Messages in the PubSub system are delivered as `Message` structs:
 
 ```go
-package main
-
-import (
-	"fmt"
-	"sync"
-	"github.com/iamNilotpal/pubsub/pubsub"
-)
-
-func main() {
-	pubsub := pubsub.NewPubSub()
-	var wg sync.WaitGroup
-
-	devopsChan, err := pubsub.Subscribe("devops")
-	if err != nil {
-		fmt.Println("Error subscribing to devops:", err)
-		return
-	}
-
-golangChan, err := pubsub.Subscribe("golang")
-	if err != nil {
-		fmt.Println("Error subscribing to golang:", err)
-		return
-	}
-
-kubernetesChan, err := pubsub.Subscribe("kubernetes")
-	if err != nil {
-		fmt.Println("Error subscribing to kubernetes:", err)
-		return
-	}
-
-	wg.Add(3)
-
-	// Goroutine to listen for messages on "devops" topic
-	go func() {
-		defer wg.Done()
-		for msg := range devopsChan {
-			fmt.Println("[DevOps]:", msg)
-		}
-		fmt.Println("DevOps channel closed")
-	}()
-
-	// Goroutine to listen for messages on "golang" topic
-	go func() {
-		defer wg.Done()
-		for msg := range golangChan {
-			fmt.Println("[Golang]:", msg)
-		}
-		fmt.Println("Golang channel closed")
-	}()
-
-	// Goroutine to listen for messages on "kubernetes" topic
-	go func() {
-		defer wg.Done()
-		for msg := range kubernetesChan {
-			fmt.Println("[Kubernetes]:", msg)
-		}
-		fmt.Println("Kubernetes channel closed")
-	}()
-
-	// Publish messages
-	if err := pubsub.Publish("golang", "Go is great for concurrency!"); err != nil {
-		fmt.Println("Error publishing to golang:", err)
-	}
-	if err := pubsub.Publish("devops", "CI/CD pipelines automate deployments."); err != nil {
-		fmt.Println("Error publishing to devops:", err)
-	}
-	if err := pubsub.Publish("kubernetes", "K8s makes container orchestration easy."); err != nil {
-		fmt.Println("Error publishing to kubernetes:", err)
-	}
-
-	// Close PubSub
-	if err := pubsub.Close(); err != nil {
-		fmt.Println("Error closing pubsub:", err)
-	}
-
-	wg.Wait()
+type Message struct {
+  Topic   string // The topic this message was published to
+  Message string // The actual message content
 }
 ```
 
-### **2️⃣ Multiple Subscribers to the Same Topic**
+This structure allows subscribers to know which topic a message originated from,
+enabling more sophisticated message handling.
 
-This example shows how multiple subscribers can listen to the same topic.
+## Usage Examples
+
+### Basic Example
+
+This example demonstrates the core functionality of subscribing to topics,
+publishing messages, and handling graceful shutdown:
 
 ```go
 package main
@@ -114,52 +49,55 @@ package main
 import (
 	"fmt"
 	"sync"
-	ps "github.com/iamNilotpal/pubsub/pubsub"
+
+	"github.com/iamNilotpal/pubsub"
 )
 
 func main() {
 	ps := pubsub.NewPubSub()
 	var wg sync.WaitGroup
 
-	// Subscribe multiple listeners to "news" topic
-	newsChan1, err := ps.Subscribe("news")
+	// Subscribe to different topics
+	devopsChan, err := ps.Subscribe("devops")
 	if err != nil {
-		fmt.Println("Error subscribing to news:", err)
-		return
-	}
-	newsChan2, err := ps.Subscribe("news")
-	if err != nil {
-		fmt.Println("Error subscribing to news:", err)
+		fmt.Println("Error subscribing to devops:", err)
 		return
 	}
 
+	golangChan, err := ps.Subscribe("golang")
+	if err != nil {
+		fmt.Println("Error subscribing to golang:", err)
+		return
+	}
+
+	// Create goroutines to handle messages
 	wg.Add(2)
 
-	// First subscriber
 	go func() {
 		defer wg.Done()
-		for msg := range newsChan1 {
-			fmt.Println("[Subscriber 1]:", msg)
+		for msg := range devopsChan {
+			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Message)
 		}
+		fmt.Println("DevOps channel closed")
 	}()
 
-	// Second subscriber
 	go func() {
 		defer wg.Done()
-		for msg := range newsChan2 {
-			fmt.Println("[Subscriber 2]:", msg)
+		for msg := range golangChan {
+			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Message)
 		}
+		fmt.Println("Golang channel closed")
 	}()
 
-	// Publisher sends messages
-	if err := ps.Publish("news", "Breaking News: Golang 1.22 released!"); err != nil {
-		fmt.Println("Error publishing to news:", err)
+	// Publish messages to topics
+	if err := ps.Publish("golang", "Go is great for concurrency!"); err != nil {
+		fmt.Println("Error publishing to golang:", err)
 	}
-	if err := ps.Publish("news", "New Kubernetes security update available."); err != nil {
-		fmt.Println("Error publishing to news:", err)
+	if err := ps.Publish("devops", "CI/CD pipelines automate deployments."); err != nil {
+		fmt.Println("Error publishing to devops:", err)
 	}
 
-	// Close the PubSub system
+	// Close PubSub system
 	if err := ps.Close(); err != nil {
 		fmt.Println("Error closing pubsub:", err)
 	}
@@ -168,56 +106,75 @@ func main() {
 }
 ```
 
-### **3️⃣ Using PubSub in a Web Server**
+### HTTP Server Example
 
-This example demonstrates how to use `PubSub` inside an HTTP server to push
-updates.
+This example demonstrates how to use the PubSub system within an HTTP server to
+push real-time updates:
 
 ```go
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
-	ps "github.com/iamNilotpal/pubsub/pubsub"
+	"github.com/iamNilotpal/pubsub"
 )
 
-var ps = pubsub.NewPubSub()
-
-func newsHandler(w http.ResponseWriter, r *http.Request) {
-	// Subscribe to the "news" topic
-	ch, err := ps.Subscribe("news")
-	if err != nil {
-		if err == pubsub.ErrPubSubClosed {
-			http.Error(w, "PubSub is closed", http.StatusServiceUnavailable)
-			return
-		}
-		http.Error(w, "Subscription error", http.StatusInternalServerError)
-		return
-	}
-
-	// Stream messages as they arrive
-	for msg := range ch {
-		fmt.Fprintf(w, "News update: %s\n", msg)
-	}
-}
-
 func main() {
+	ps := pubsub.NewPubSub()
 	var wg sync.WaitGroup
 
-	// Start a simple HTTP server
-	http.HandleFunc("/news", newsHandler)
-	go http.ListenAndServe(":8080", nil)
+	// Handler function that subscribes clients to the "updates" topic
+	http.HandleFunc("/updates", func(w http.ResponseWriter, r *http.Request) {
+		// Set headers for server-sent events
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
 
-	// Simulate a background process publishing news updates
+		// Subscribe to updates topic
+		ch, err := ps.Subscribe("updates")
+		if err != nil {
+			http.Error(w, "Subscription error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Detect client disconnection
+		notify := r.Context().Done()
+		go func() {
+			<-notify
+			fmt.Println("Client disconnected")
+		}()
+
+		// Stream messages as they arrive
+		for msg := range ch {
+			// Convert message to JSON
+			eventData, _ := json.Marshal(map[string]string{
+				"topic":   msg.Topic,
+				"message": msg.Message,
+				"time":    time.Now().Format(time.RFC3339),
+			})
+
+			fmt.Fprintf(w, "data: %s\n\n", eventData)
+			w.(http.Flusher).Flush()
+		}
+	})
+
+	// Start HTTP server
+	go func() {
+		fmt.Println("Server started at http://localhost:8080/updates")
+		http.ListenAndServe(":8080", nil)
+	}()
+
+	// Simulate a background process publishing updates
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for i := 1; i <= 5; i++ {
-			ps.Publish("news", fmt.Sprintf("Breaking News %d!", i))
+			ps.Publish("updates", fmt.Sprintf("System update %d: Processing completed", i))
 			time.Sleep(2 * time.Second)
 		}
 		ps.Close()
@@ -227,14 +184,221 @@ func main() {
 }
 ```
 
-👉 Run the server and visit `http://localhost:8080/news` in your browser to see
-real-time updates.
+### Complex Example: Multi-Topic Monitoring System
 
-## 📝 License
+This example showcases a more comprehensive implementation with multiple topics,
+error handling, and the use of the Message struct for advanced filtering:
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE)
-file for details.
+```go
+package main
 
-## 🌟 Show Your Support
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"time"
 
-If you like this project, give it a ⭐ on GitHub!
+	"github.com/iamNilotpal/pubsub"
+)
+
+func main() {
+	ps := pubsub.NewPubSub()
+	var wg sync.WaitGroup
+
+	// Define topics
+	topics := []string{"system", "security", "performance", "errors"}
+	subscribers := make(map[string]<-chan *pubsub.Message)
+
+	// Subscribe to all topics
+	for _, topic := range topics {
+		ch, err := ps.Subscribe(topic)
+		if err != nil {
+			fmt.Printf("Failed to subscribe to %s: %v\n", topic, err)
+			continue
+		}
+		subscribers[topic] = ch
+	}
+
+	// Create a unified message handler that processes all messages
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// Create a channel to merge all topic messages
+		allMessages := make(chan *pubsub.Message)
+
+		// For each topic subscription, forward messages to allMessages
+		for topic, ch := range subscribers {
+			go func(t string, c <-chan *pubsub.Message) {
+				for msg := range c {
+					allMessages <- msg
+				}
+			}(topic, ch)
+		}
+
+		// Process all incoming messages with topic-specific handling
+		for msg := range allMessages {
+			timestamp := time.Now().Format("15:04:05")
+
+			// Handle messages differently based on topic
+			switch msg.Topic {
+			case "security":
+				fmt.Printf("🔒 [%s] SECURITY ALERT: %s\n", timestamp, msg.Message)
+
+				// Apply additional security-specific logic
+				if strings.Contains(msg.Message, "Failed login") {
+					fmt.Println("    ⚠️  Potential breach attempt detected!")
+				}
+
+			case "performance":
+				fmt.Printf("📊 [%s] PERFORMANCE: %s\n", timestamp, msg.Message)
+
+				// Extract metrics if present
+				if strings.Contains(msg.Message, "CPU usage") {
+					parts := strings.Split(msg.Message, ":")
+					if len(parts) > 1 {
+						fmt.Printf("    System load detected at%s\n", parts[1])
+					}
+				}
+
+			case "errors":
+				fmt.Printf("❌ [%s] ERROR: %s\n", timestamp, msg.Message)
+
+			default:
+				fmt.Printf("ℹ️ [%s] [%s] %s\n", timestamp, msg.Topic, msg.Message)
+			}
+		}
+
+		fmt.Println("Message handler has shut down")
+	}()
+
+	// Publish messages with different patterns
+	go func() {
+		// System messages - periodic updates
+		for i := 1; i <= 3; i++ {
+			ps.Publish("system", fmt.Sprintf("System check %d completed", i))
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	go func() {
+		// Security alerts - random patterns
+		alerts := []string{
+			"Failed login attempt detected from IP 192.168.1.254",
+			"Configuration file accessed by user admin",
+			"New user account created: operator",
+		}
+
+		for _, alert := range alerts {
+			ps.Publish("security", alert)
+			time.Sleep(1500 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		// Performance metrics
+		metrics := map[string]int{
+			"CPU usage":     65,
+			"Memory usage":  78,
+			"Disk I/O":      45,
+			"Network usage": 30,
+		}
+
+		for metric, value := range metrics {
+			ps.Publish("performance", fmt.Sprintf("%s: %d%%", metric, value))
+			time.Sleep(800 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		// Simulate error conditions
+		time.Sleep(3 * time.Second)
+		ps.Publish("errors", "Database connection timeout")
+		time.Sleep(1 * time.Second)
+		ps.Publish("errors", "API rate limit exceeded")
+	}()
+
+	// Run for a while then close gracefully
+	time.Sleep(6 * time.Second)
+	fmt.Println("\nInitiating graceful shutdown...")
+
+	if err := ps.Close(); err != nil {
+		fmt.Printf("Error during shutdown: %v\n", err)
+	}
+
+	wg.Wait()
+	fmt.Println("All subscribers have terminated successfully")
+}
+```
+
+## Error Handling
+
+The library provides specific error types to handle different scenarios:
+
+- `ErrTopicNotFound`: Returned when attempting to publish to a non-existent
+  topic
+- `ErrPubSubClosed`: Returned when attempting operations on a closed PubSub
+  instance
+
+## Implementation Details
+
+### Message Struct
+
+The `Message` struct provides a structured way to receive messages with context:
+
+```go
+type Message struct {
+	Topic   string // The topic this message belongs to
+	Message string // The actual message content
+}
+```
+
+This allows subscribers to filter or route messages based on topic information,
+even when listening to multiple topics.
+
+### PubSub Methods
+
+#### NewPubSub()
+
+Creates a new PubSub instance with proper initialization.
+
+#### Subscribe(topic string) (<-chan \*Message, error)
+
+Subscribes to a topic and returns a channel that will receive messages published
+to that topic.
+
+#### Publish(topic, msg string) error
+
+Publishes a message to the specified topic. Returns an error if the topic
+doesn't exist or if the PubSub system is closed.
+
+#### Close() error
+
+Closes the PubSub system, shutting down all subscription channels.
+
+## Best Practices
+
+- Create a new PubSub instance for each logical separation of concerns
+- Always check for errors when subscribing or publishing
+- Use `defer` to ensure proper closure of the PubSub system
+- Implement proper context handling for HTTP-based implementations
+
+## Thread Safety
+
+All operations on the PubSub instance are thread-safe, utilizing a read-write
+mutex to coordinate access to the subscription map.
+
+## Performance Considerations
+
+The PubSub system is designed for in-memory operations within a single process.
+For distributed systems requiring cross-service communication, consider using
+specialized message brokers like RabbitMQ, Kafka, or NATS.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
+for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
