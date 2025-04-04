@@ -23,7 +23,7 @@ var defaultConfig = config{
 
 // NewPubSub initializes a new PubSub system with optional configuration settings.
 // Users can pass functional options to modify the default behavior.
-func NewPubSub(options ...Option) *PubSub {
+func NewPubSub[T any](options ...Option) *PubSub[T] {
 	config := defaultConfig
 
 	// Apply provided configuration options.
@@ -31,10 +31,10 @@ func NewPubSub(options ...Option) *PubSub {
 		opt(&config)
 	}
 
-	return &PubSub{
+	return &PubSub[T]{
 		config:        &config,
 		mu:            sync.RWMutex{},
-		subscriptions: map[string][]chan *Message{},
+		subscriptions: map[string][]chan *Message[T]{},
 	}
 }
 
@@ -42,7 +42,7 @@ func NewPubSub(options ...Option) *PubSub {
 // It returns a read-only channel from which the subscriber can receive messages.
 //
 // Returns an error if the PubSub system is closed.
-func (ps *PubSub) Subscribe(topic string) (<-chan *Message, error) {
+func (ps *PubSub[T]) Subscribe(topic string) (<-chan *Message[T], error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
@@ -51,7 +51,7 @@ func (ps *PubSub) Subscribe(topic string) (<-chan *Message, error) {
 	}
 
 	// Create a new subscriber channel with the configured buffer size.
-	subscriber := make(chan *Message, ps.config.channelSize)
+	subscriber := make(chan *Message[T], ps.config.channelSize)
 	subscribers := ps.subscriptions[topic]
 
 	// Append the new subscriber to the list of subscribers for the topic.
@@ -62,7 +62,7 @@ func (ps *PubSub) Subscribe(topic string) (<-chan *Message, error) {
 // Publish sends a message to all subscribers of the given topic.
 //
 // Returns an error if the PubSub system is closed or if there are no subscribers for the topic.
-func (ps *PubSub) Publish(topic, msg string) error {
+func (ps *PubSub[T]) Publish(topic string, msg T) error {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 
@@ -77,7 +77,7 @@ func (ps *PubSub) Publish(topic, msg string) error {
 
 	// Deliver the message to all subscribers of the topic.
 	for _, ch := range channels {
-		ch <- &Message{Topic: topic, Message: msg}
+		ch <- &Message[T]{Topic: topic, Payload: msg}
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (ps *PubSub) Publish(topic, msg string) error {
 // All open subscription channels are closed.
 //
 // Returns an error if the system is already closed.
-func (ps *PubSub) Close() error {
+func (ps *PubSub[T]) Close() error {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
