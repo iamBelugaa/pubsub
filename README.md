@@ -13,7 +13,6 @@ multiple subscribers to listen to topics and receive messages asynchronously.
 - Thread-safe operations with proper locking mechanisms.
 - Graceful shutdown capabilities for safe channel closure.
 - Generic support for any payload type.
-- Easy integration into web applications and microservices.
 
 ## Installation
 
