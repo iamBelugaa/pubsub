@@ -39,7 +39,7 @@ you to use any type as the payload.
 
 ### PubSub Methods
 
-#### `NewPubSub[T any]()`
+#### `New[T any]()`
 
 Creates a new PubSub instance with proper initialization for the specified
 payload type.
@@ -63,7 +63,7 @@ Closes the PubSub system, shutting down all subscription channels.
 You can configure the PubSub system using options:
 
 ```go
-ps := pubsub.NewPubSub[string](pubsub.WithChannelSize(10))
+ps := pubsub.New[string](pubsub.WithChannelSize(10))
 ```
 
 This sets the buffer size of subscriber channels to 10 and creates a PubSub
@@ -88,7 +88,7 @@ import (
 
 func main() {
 	// Create a PubSub instance that works with string payloads
-	ps := pubsub.NewPubSub[string](pubsub.WithChannelSize(5))
+	ps := pubsub.New[string](pubsub.WithChannelSize(5))
 	var wg sync.WaitGroup
 
 	// Subscribe to different topics
@@ -164,7 +164,7 @@ type EventData struct {
 
 func main() {
 	// Create a PubSub instance for EventData type
-	ps := pubsub.NewPubSub[EventData]()
+	ps := pubsub.New[EventData]()
 	var wg sync.WaitGroup
 
 	// Subscribe to events topic
@@ -235,7 +235,7 @@ type UpdateMessage struct {
 }
 
 func main() {
-	ps := pubsub.NewPubSub[UpdateMessage]()
+	ps := pubsub.New[UpdateMessage]()
 	var wg sync.WaitGroup
 
 	// Handler function that subscribes clients to the "updates" topic
@@ -356,7 +356,7 @@ type Event any
 
 func main() {
 	// Create PubSub with Event to handle different event types
-	ps := pubsub.NewPubSub[Event]()
+	ps := pubsub.New[Event]()
 	var wg sync.WaitGroup
 
 	// Define topics
