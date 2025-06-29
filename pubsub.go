@@ -28,7 +28,7 @@ func NewPubSub(options ...Option) *PubSub {
 
 	// Apply provided configuration options.
 	for _, opt := range options {
-		opt.apply(&config)
+		opt(&config)
 	}
 
 	return &PubSub{
