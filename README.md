@@ -1,8 +1,8 @@
 # 📢 Go PubSub
 
-A lightweight, in-memory **Publish-Subscribe (PubSub) system** written in Go
-using **goroutines and channels**. This library allows multiple subscribers to
-listen to topics and receive messages asynchronously.
+A lightweight, in-memory **Publish-Subscribe (PubSub) System** written in Go
+using **channels**. This library allows multiple subscribers to listen to topics
+and receive messages asynchronously.
 
 ## 🚀 Features
 
@@ -37,9 +37,23 @@ func main() {
 	pubsub := pubsub.NewPubSub()
 	var wg sync.WaitGroup
 
-	devopsChan := pubsub.Subscribe("devops")
-	golangChan := pubsub.Subscribe("golang")
-	kubernetesChan := pubsub.Subscribe("kubernetes")
+	devopsChan, err := pubsub.Subscribe("devops")
+	if err != nil {
+		fmt.Println("Error subscribing to devops:", err)
+		return
+	}
+
+golangChan, err := pubsub.Subscribe("golang")
+	if err != nil {
+		fmt.Println("Error subscribing to golang:", err)
+		return
+	}
+
+kubernetesChan, err := pubsub.Subscribe("kubernetes")
+	if err != nil {
+		fmt.Println("Error subscribing to kubernetes:", err)
+		return
+	}
 
 	wg.Add(3)
 
@@ -71,12 +85,20 @@ func main() {
 	}()
 
 	// Publish messages
-	pubsub.Publish("golang", "Go is great for concurrency!")
-	pubsub.Publish("devops", "CI/CD pipelines automate deployments.")
-	pubsub.Publish("kubernetes", "K8s makes container orchestration easy.")
+	if err := pubsub.Publish("golang", "Go is great for concurrency!"); err != nil {
+		fmt.Println("Error publishing to golang:", err)
+	}
+	if err := pubsub.Publish("devops", "CI/CD pipelines automate deployments."); err != nil {
+		fmt.Println("Error publishing to devops:", err)
+	}
+	if err := pubsub.Publish("kubernetes", "K8s makes container orchestration easy."); err != nil {
+		fmt.Println("Error publishing to kubernetes:", err)
+	}
 
 	// Close PubSub
-	pubsub.Close()
+	if err := pubsub.Close(); err != nil {
+		fmt.Println("Error closing pubsub:", err)
+	}
 
 	wg.Wait()
 }
@@ -100,8 +122,16 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Subscribe multiple listeners to "news" topic
-	newsChan1 := ps.Subscribe("news")
-	newsChan2 := ps.Subscribe("news")
+	newsChan1, err := ps.Subscribe("news")
+	if err != nil {
+		fmt.Println("Error subscribing to news:", err)
+		return
+	}
+	newsChan2, err := ps.Subscribe("news")
+	if err != nil {
+		fmt.Println("Error subscribing to news:", err)
+		return
+	}
 
 	wg.Add(2)
 
@@ -122,11 +152,17 @@ func main() {
 	}()
 
 	// Publisher sends messages
-	ps.Publish("news", "Breaking News: Golang 1.22 released!")
-	ps.Publish("news", "New Kubernetes security update available.")
+	if err := ps.Publish("news", "Breaking News: Golang 1.22 released!"); err != nil {
+		fmt.Println("Error publishing to news:", err)
+	}
+	if err := ps.Publish("news", "New Kubernetes security update available."); err != nil {
+		fmt.Println("Error publishing to news:", err)
+	}
 
 	// Close the PubSub system
-	ps.Close()
+	if err := ps.Close(); err != nil {
+		fmt.Println("Error closing pubsub:", err)
+	}
 
 	wg.Wait()
 }
@@ -153,7 +189,15 @@ var ps = pubsub.NewPubSub()
 
 func newsHandler(w http.ResponseWriter, r *http.Request) {
 	// Subscribe to the "news" topic
-	ch := ps.Subscribe("news")
+	ch, err := ps.Subscribe("news")
+	if err != nil {
+		if err == pubsub.ErrPubSubClosed {
+			http.Error(w, "PubSub is closed", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "Subscription error", http.StatusInternalServerError)
+		return
+	}
 
 	// Stream messages as they arrive
 	for msg := range ch {
