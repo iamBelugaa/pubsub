@@ -36,6 +36,16 @@ type Message struct {
 This structure allows subscribers to know which topic a message originated from,
 enabling more sophisticated message handling.
 
+### Configuration
+
+You can configure the PubSub system using options:
+
+```go
+ps := pubsub.NewPubSub(pubsub.WithChannelSize(10))
+```
+
+This sets the buffer size of subscriber channels to 10.
+
 ## Usage Examples
 
 ### Basic Example
@@ -54,7 +64,7 @@ import (
 )
 
 func main() {
-	ps := pubsub.NewPubSub()
+	ps := pubsub.NewPubSub(pubsub.WithChannelSize(5))
 	var wg sync.WaitGroup
 
 	// Subscribe to different topics
@@ -207,69 +217,90 @@ func main() {
 
 	// Define topics
 	topics := []string{"system", "security", "performance", "errors"}
-	subscribers := make(map[string]<-chan *pubsub.Message)
 
-	// Subscribe to all topics
+	// Create a channel to collect all messages
+	// Use a buffered channel to avoid deadlocks
+	allMessages := make(chan *pubsub.Message, 100)
+
+	// Variable to track when we should stop processing
+	done := make(chan struct{})
+
+	// Subscribe to all topics and set up forwarders
 	for _, topic := range topics {
-		ch, err := ps.Subscribe(topic)
+		topicCh, err := ps.Subscribe(topic)
 		if err != nil {
 			fmt.Printf("Failed to subscribe to %s: %v\n", topic, err)
 			continue
 		}
-		subscribers[topic] = ch
+
+		// For each subscription, forward messages to the collector channel
+		go func(ch <-chan *pubsub.Message) {
+			for {
+				select {
+				case msg, ok := <-ch:
+					if !ok {
+						// Channel closed, exit goroutine
+						return
+					}
+					// Forward the message
+					allMessages <- msg
+				case <-done:
+					// Exit signal received
+					return
+				}
+			}
+		}(topicCh)
 	}
 
-	// Create a unified message handler that processes all messages
+	// Message processor goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		// Create a channel to merge all topic messages
-		allMessages := make(chan *pubsub.Message)
-
-		// For each topic subscription, forward messages to allMessages
-		for topic, ch := range subscribers {
-			go func(t string, c <-chan *pubsub.Message) {
-				for msg := range c {
-					allMessages <- msg
-				}
-			}(topic, ch)
-		}
-
-		// Process all incoming messages with topic-specific handling
-		for msg := range allMessages {
-			timestamp := time.Now().Format("15:04:05")
-
-			// Handle messages differently based on topic
-			switch msg.Topic {
-			case "security":
-				fmt.Printf("🔒 [%s] SECURITY ALERT: %s\n", timestamp, msg.Message)
-
-				// Apply additional security-specific logic
-				if strings.Contains(msg.Message, "Failed login") {
-					fmt.Println("    ⚠️  Potential breach attempt detected!")
+		for {
+			select {
+			case msg, ok := <-allMessages:
+				if !ok {
+					// Channel closed, exit goroutine
+					return
 				}
 
-			case "performance":
-				fmt.Printf("📊 [%s] PERFORMANCE: %s\n", timestamp, msg.Message)
+				timestamp := time.Now().Format("15:04:05")
 
-				// Extract metrics if present
-				if strings.Contains(msg.Message, "CPU usage") {
-					parts := strings.Split(msg.Message, ":")
-					if len(parts) > 1 {
-						fmt.Printf("    System load detected at%s\n", parts[1])
+				// Handle messages differently based on topic
+				switch msg.Topic {
+				case "security":
+					fmt.Printf("🔒 [%s] SECURITY ALERT: %s\n", timestamp, msg.Message)
+
+					// Apply additional security-specific logic
+					if strings.Contains(msg.Message, "Failed login") {
+						fmt.Println("    ⚠️  Potential breach attempt detected!")
 					}
+
+				case "performance":
+					fmt.Printf("📊 [%s] PERFORMANCE: %s\n", timestamp, msg.Message)
+
+					// Extract metrics if present
+					if strings.Contains(msg.Message, "CPU usage") {
+						parts := strings.Split(msg.Message, ":")
+						if len(parts) > 1 {
+							fmt.Printf("    System load detected at%s\n", parts[1])
+						}
+					}
+
+				case "errors":
+					fmt.Printf("❌ [%s] ERROR: %s\n", timestamp, msg.Message)
+
+				default:
+					fmt.Printf("ℹ️ [%s] [%s] %s\n", timestamp, msg.Topic, msg.Message)
 				}
 
-			case "errors":
-				fmt.Printf("❌ [%s] ERROR: %s\n", timestamp, msg.Message)
-
-			default:
-				fmt.Printf("ℹ️ [%s] [%s] %s\n", timestamp, msg.Topic, msg.Message)
+			case <-done:
+				// Exit signal received
+				fmt.Println("Message processor shutting down")
+				return
 			}
 		}
-
-		fmt.Println("Message handler has shut down")
 	}()
 
 	// Publish messages with different patterns
@@ -322,9 +353,16 @@ func main() {
 	time.Sleep(6 * time.Second)
 	fmt.Println("\nInitiating graceful shutdown...")
 
+	// Signal all goroutines to stop
+	close(done)
+
+	// Close the PubSub system
 	if err := ps.Close(); err != nil {
 		fmt.Printf("Error during shutdown: %v\n", err)
 	}
+
+	// Close the collector channel after PubSub is closed
+	close(allMessages)
 
 	wg.Wait()
 	fmt.Println("All subscribers have terminated successfully")
@@ -382,6 +420,9 @@ Closes the PubSub system, shutting down all subscription channels.
 - Always check for errors when subscribing or publishing
 - Use `defer` to ensure proper closure of the PubSub system
 - Implement proper context handling for HTTP-based implementations
+- Consider using channel buffering for high-throughput scenarios
+- Use a termination signal (like a `done` channel) to cleanly shut down
+  goroutines
 
 ## Thread Safety
 
