@@ -4,19 +4,19 @@ import "sync"
 
 // Message represents a published message in the PubSub system.
 // It contains the topic and the message content.
-type Message struct {
+type Message[T any] struct {
 	Topic   string // Topic to which the message belongs.
-	Message string // Content of the message.
+	Payload T      // Content of the payload.
 }
 
 // PubSub implements a basic publish-subscribe system.
 // It maintains topic-based subscriptions and allows messages to be published
 // to subscribers listening to specific topics.
-type PubSub struct {
-	closed        bool                       // Indicates if the PubSub system is closed.
-	config        *config                    // Configuration settings for the PubSub system.
-	mu            sync.RWMutex               // Mutex to synchronize access to subscriptions.
-	subscriptions map[string][]chan *Message // Map of topic subscriptions to channels.
+type PubSub[T any] struct {
+	closed        bool                          // Indicates if the PubSub system is closed.
+	config        *config                       // Configuration settings for the PubSub system.
+	mu            sync.RWMutex                  // Mutex to synchronize access to subscriptions.
+	subscriptions map[string][]chan *Message[T] // Map of topic subscriptions to channels.
 }
 
 // config holds the configuration settings for the PubSub system.
