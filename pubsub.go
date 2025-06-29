@@ -6,23 +6,29 @@ import (
 )
 
 var (
-	ErrPubSubClosed = errors.New("pubsub is closed")
+	ErrTopicNotFound = errors.New("topic not found")
+	ErrPubSubClosed  = errors.New("pubsub is closed")
 )
+
+type Message struct {
+	Topic   string
+	Message string
+}
 
 type PubSub struct {
 	closed        bool
 	mu            sync.RWMutex
-	subscriptions map[string][]chan string
+	subscriptions map[string][]chan *Message
 }
 
 func NewPubSub() *PubSub {
 	return &PubSub{
 		mu:            sync.RWMutex{},
-		subscriptions: make(map[string][]chan string),
+		subscriptions: map[string][]chan *Message{},
 	}
 }
 
-func (ps *PubSub) Subscribe(topic string) (<-chan string, error) {
+func (ps *PubSub) Subscribe(topic string) (<-chan *Message, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
@@ -30,11 +36,11 @@ func (ps *PubSub) Subscribe(topic string) (<-chan string, error) {
 		return nil, ErrPubSubClosed
 	}
 
-	ch := make(chan string, 1)
-	channels := ps.subscriptions[topic]
+	subscriber := make(chan *Message, 1)
+	subscribers := ps.subscriptions[topic]
 
-	ps.subscriptions[topic] = append(channels, ch)
-	return ch, nil
+	ps.subscriptions[topic] = append(subscribers, subscriber)
+	return subscriber, nil
 }
 
 func (ps *PubSub) Publish(topic, msg string) error {
@@ -45,9 +51,13 @@ func (ps *PubSub) Publish(topic, msg string) error {
 		return ErrPubSubClosed
 	}
 
-	channels := ps.subscriptions[topic]
+	channels, ok := ps.subscriptions[topic]
+	if !ok {
+		return ErrTopicNotFound
+	}
+
 	for _, ch := range channels {
-		ch <- msg
+		ch <- &Message{Topic: topic, Message: msg}
 	}
 
 	return nil
