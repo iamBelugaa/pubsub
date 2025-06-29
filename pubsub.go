@@ -21,9 +21,9 @@ var defaultConfig = config{
 	channelSize: 1,
 }
 
-// NewPubSub initializes a new PubSub system with optional configuration settings.
+// New initializes a new PubSub system with optional configuration settings.
 // Users can pass functional options to modify the default behavior.
-func NewPubSub[T any](options ...Option) *PubSub[T] {
+func New[T any](options ...Option) *PubSub[T] {
 	config := defaultConfig
 
 	// Apply provided configuration options.
