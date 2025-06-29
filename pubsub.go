@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -77,7 +78,12 @@ func (ps *PubSub[T]) Publish(topic string, msg T) error {
 
 	// Deliver the message to all subscribers of the topic.
 	for _, ch := range channels {
-		ch <- &Message[T]{Topic: topic, Payload: msg}
+		message := Message[T]{Topic: topic, Payload: msg}
+		select {
+		case ch <- &message:
+		default:
+			fmt.Printf("Failed to send message for Topic : %s - %+v\n", topic, message)
+		}
 	}
 
 	return nil
