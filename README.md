@@ -20,21 +20,41 @@ multiple subscribers to listen to topics and receive messages asynchronously.
 go get github.com/iamNilotpal/pubsub
 ```
 
-## Key Concepts
+## Implementation Details
 
-### Message Structure
+### Message Struct
 
-Messages in the PubSub system are delivered as `Message` structs:
+The `Message` struct provides a structured way to receive messages with context:
 
 ```go
 type Message struct {
-  Topic   string // The topic this message was published to
-  Message string // The actual message content
+	Topic   string // The topic this message belongs to
+	Message string // The actual message content
 }
 ```
 
-This structure allows subscribers to know which topic a message originated from,
-enabling more sophisticated message handling.
+This allows subscribers to filter or route messages based on topic information,
+even when listening to multiple topics.
+
+### PubSub Methods
+
+#### `NewPubSub()`
+
+Creates a new PubSub instance with proper initialization.
+
+#### `Subscribe(topic string) (<-chan *Message, error)`
+
+Subscribes to a topic and returns a channel that will receive messages published
+to that topic.
+
+#### `Publish(topic, msg string) error`
+
+Publishes a message to the specified topic. Returns an error if the topic
+doesn't exist or if the PubSub system is closed.
+
+#### `Close() error`
+
+Closes the PubSub system, shutting down all subscription channels.
 
 ### Configuration
 
@@ -377,42 +397,6 @@ The library provides specific error types to handle different scenarios:
   topic
 - `ErrPubSubClosed`: Returned when attempting operations on a closed PubSub
   instance
-
-## Implementation Details
-
-### Message Struct
-
-The `Message` struct provides a structured way to receive messages with context:
-
-```go
-type Message struct {
-	Topic   string // The topic this message belongs to
-	Message string // The actual message content
-}
-```
-
-This allows subscribers to filter or route messages based on topic information,
-even when listening to multiple topics.
-
-### PubSub Methods
-
-#### NewPubSub()
-
-Creates a new PubSub instance with proper initialization.
-
-#### Subscribe(topic string) (<-chan \*Message, error)
-
-Subscribes to a topic and returns a channel that will receive messages published
-to that topic.
-
-#### Publish(topic, msg string) error
-
-Publishes a message to the specified topic. Returns an error if the topic
-doesn't exist or if the PubSub system is closed.
-
-#### Close() error
-
-Closes the PubSub system, shutting down all subscription channels.
 
 ## Best Practices
 
