@@ -294,7 +294,7 @@ func main() {
 
 					// Apply additional security-specific logic
 					if strings.Contains(msg.Message, "Failed login") {
-						fmt.Println("    ⚠️  Potential breach attempt detected!")
+						fmt.Println("⚠️  Potential breach attempt detected!")
 					}
 
 				case "performance":
@@ -304,7 +304,7 @@ func main() {
 					if strings.Contains(msg.Message, "CPU usage") {
 						parts := strings.Split(msg.Message, ":")
 						if len(parts) > 1 {
-							fmt.Printf("    System load detected at%s\n", parts[1])
+							fmt.Printf("System load detected at%s\n", parts[1])
 						}
 					}
 
