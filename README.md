@@ -7,12 +7,13 @@ multiple subscribers to listen to topics and receive messages asynchronously.
 ## Features
 
 - Simple and efficient PubSub implementation built on Go's concurrency
-  primitives
-- Support for multiple subscribers per topic
-- Structured message delivery with topic information included
-- Thread-safe operations with proper locking mechanisms
-- Graceful shutdown capabilities for safe channel closure
-- Easy integration into web applications and microservices
+  primitives.
+- Support for multiple subscribers per topic.
+- Structured message delivery with topic information included.
+- Thread-safe operations with proper locking mechanisms.
+- Graceful shutdown capabilities for safe channel closure.
+- Generic support for any payload type.
+- Easy integration into web applications and microservices.
 
 ## Installation
 
@@ -27,27 +28,29 @@ go get github.com/iamNilotpal/pubsub
 The `Message` struct provides a structured way to receive messages with context:
 
 ```go
-type Message struct {
-	Topic   string // The topic this message belongs to
-	Message string // The actual message content
+type Message[T any] struct {
+	Topic   string // The topic this message belongs to.
+	Payload T      // The actual message payload.
 }
 ```
 
 This allows subscribers to filter or route messages based on topic information,
-even when listening to multiple topics.
+even when listening to multiple topics. The generic type parameter `T` enables
+you to use any type as the payload.
 
 ### PubSub Methods
 
-#### `NewPubSub()`
+#### `NewPubSub[T any]()`
 
-Creates a new PubSub instance with proper initialization.
+Creates a new PubSub instance with proper initialization for the specified
+payload type.
 
-#### `Subscribe(topic string) (<-chan *Message, error)`
+#### `Subscribe(topic string) (<-chan *Message[T], error)`
 
 Subscribes to a topic and returns a channel that will receive messages published
 to that topic.
 
-#### `Publish(topic, msg string) error`
+#### `Publish(topic string, msg T) error`
 
 Publishes a message to the specified topic. Returns an error if the topic
 doesn't exist or if the PubSub system is closed.
@@ -61,10 +64,11 @@ Closes the PubSub system, shutting down all subscription channels.
 You can configure the PubSub system using options:
 
 ```go
-ps := pubsub.NewPubSub(pubsub.WithChannelSize(10))
+ps := pubsub.NewPubSub[string](pubsub.WithChannelSize(10))
 ```
 
-This sets the buffer size of subscriber channels to 10.
+This sets the buffer size of subscriber channels to 10 and creates a PubSub
+instance that works with string payloads.
 
 ## Usage Examples
 
@@ -84,7 +88,8 @@ import (
 )
 
 func main() {
-	ps := pubsub.NewPubSub(pubsub.WithChannelSize(5))
+	// Create a PubSub instance that works with string payloads
+	ps := pubsub.NewPubSub[string](pubsub.WithChannelSize(5))
 	var wg sync.WaitGroup
 
 	// Subscribe to different topics
@@ -106,7 +111,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for msg := range devopsChan {
-			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Message)
+			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Payload)
 		}
 		fmt.Println("DevOps channel closed")
 	}()
@@ -114,7 +119,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for msg := range golangChan {
-			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Message)
+			fmt.Printf("[%s]: %s\n", msg.Topic, msg.Payload)
 		}
 		fmt.Println("Golang channel closed")
 	}()
@@ -132,6 +137,76 @@ func main() {
 		fmt.Println("Error closing pubsub:", err)
 	}
 
+	wg.Wait()
+}
+```
+
+### Using Custom Types
+
+This example demonstrates using a custom struct as the payload type:
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/iamNilotpal/pubsub"
+)
+
+// Define a custom message type
+type EventData struct {
+	Timestamp time.Time
+	Severity  string
+	Content   string
+}
+
+func main() {
+	// Create a PubSub instance for EventData type
+	ps := pubsub.NewPubSub[EventData]()
+	var wg sync.WaitGroup
+
+	// Subscribe to events topic
+	eventsChan, err := ps.Subscribe("events")
+	if err != nil {
+		fmt.Println("Error subscribing to events:", err)
+		return
+	}
+
+	// Process received events
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for event := range eventsChan {
+			evt := event.Payload
+			fmt.Printf("[%s] %s: %s (at %s)\n",
+				event.Topic,
+				evt.Severity,
+				evt.Content,
+				evt.Timestamp.Format(time.RFC3339),
+			)
+		}
+		fmt.Println("Events channel closed")
+	}()
+
+	// Publish events
+	ps.Publish("events", EventData{
+		Timestamp: time.Now(),
+		Severity:  "INFO",
+		Content:   "System startup completed",
+	})
+
+	ps.Publish("events", EventData{
+		Timestamp: time.Now(),
+		Severity:  "WARNING",
+		Content:   "High memory usage detected",
+	})
+
+	// Close PubSub system after a short delay
+	time.Sleep(time.Second)
+	ps.Close()
 	wg.Wait()
 }
 ```
@@ -154,8 +229,14 @@ import (
 	"github.com/iamNilotpal/pubsub"
 )
 
+// Define a message structure for updates
+type UpdateMessage struct {
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 func main() {
-	ps := pubsub.NewPubSub()
+	ps := pubsub.NewPubSub[UpdateMessage]()
 	var wg sync.WaitGroup
 
 	// Handler function that subscribes clients to the "updates" topic
@@ -181,13 +262,19 @@ func main() {
 
 		// Stream messages as they arrive
 		for msg := range ch {
-			// Convert message to JSON
-			eventData, _ := json.Marshal(map[string]string{
-				"topic":   msg.Topic,
-				"message": msg.Message,
-				"time":    time.Now().Format(time.RFC3339),
-			})
+			// Create a response object
+			response := struct {
+				Topic     string       `json:"topic"`
+				Content   string       `json:"content"`
+				Timestamp time.Time    `json:"timestamp"`
+			}{
+				Topic:     msg.Topic,
+				Content:   msg.Payload.Content,
+				Timestamp: msg.Payload.Timestamp,
+			}
 
+			// Convert to JSON
+			eventData, _ := json.Marshal(response)
 			fmt.Fprintf(w, "data: %s\n\n", eventData)
 			w.(http.Flusher).Flush()
 		}
@@ -204,7 +291,10 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for i := 1; i <= 5; i++ {
-			ps.Publish("updates", fmt.Sprintf("System update %d: Processing completed", i))
+			ps.Publish("updates", UpdateMessage{
+				Content:   fmt.Sprintf("System update %d: Processing completed", i),
+				Timestamp: time.Now(),
+			})
 			time.Sleep(2 * time.Second)
 		}
 		ps.Close()
@@ -216,174 +306,185 @@ func main() {
 
 ### Complex Example: Multi-Topic Monitoring System
 
-This example showcases a more comprehensive implementation with multiple topics,
-error handling, and the use of the Message struct for advanced filtering:
+This example showcases a more comprehensive implementation with multiple topics
+and different message types:
 
 ```go
 package main
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/iamNilotpal/pubsub"
 )
 
+// Define different event types
+type BaseEvent struct {
+	Timestamp time.Time
+	Source    string
+}
+
+type SystemEvent struct {
+	BaseEvent
+	Action string
+	Status string
+}
+
+type SecurityEvent struct {
+	BaseEvent
+	IPAddress string
+	Username  string
+	Action    string
+}
+
+type PerformanceMetric struct {
+	BaseEvent
+	Metric string
+	Value  float64
+	Unit   string
+}
+
+type ErrorEvent struct {
+	BaseEvent
+	Code        int
+	Description string
+	Severity    string
+}
+
+type Event any
+
 func main() {
-	ps := pubsub.NewPubSub()
+	// Create PubSub with Event to handle different event types
+	ps := pubsub.NewPubSub[Event]()
 	var wg sync.WaitGroup
 
 	// Define topics
 	topics := []string{"system", "security", "performance", "errors"}
 
-	// Create a channel to collect all messages
-	// Use a buffered channel to avoid deadlocks
-	allMessages := make(chan *pubsub.Message, 100)
+	// Subscribe to all topics
+	topicChannels := make(map[string]<-chan *pubsub.Message[Event])
 
-	// Variable to track when we should stop processing
-	done := make(chan struct{})
-
-	// Subscribe to all topics and set up forwarders
 	for _, topic := range topics {
-		topicCh, err := ps.Subscribe(topic)
+		ch, err := ps.Subscribe(topic)
 		if err != nil {
 			fmt.Printf("Failed to subscribe to %s: %v\n", topic, err)
 			continue
 		}
-
-		// For each subscription, forward messages to the collector channel
-		go func(ch <-chan *pubsub.Message) {
-			for {
-				select {
-				case msg, ok := <-ch:
-					if !ok {
-						// Channel closed, exit goroutine
-						return
-					}
-					// Forward the message
-					allMessages <- msg
-				case <-done:
-					// Exit signal received
-					return
-				}
-			}
-		}(topicCh)
+		topicChannels[topic] = ch
 	}
 
-	// Message processor goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	// Process messages from each topic
+	for topic, ch := range topicChannels {
+		wg.Add(1)
+		go func(topic string, msgChan <-chan *pubsub.Message[Event]) {
+			defer wg.Done()
 
-		for {
-			select {
-			case msg, ok := <-allMessages:
-				if !ok {
-					// Channel closed, exit goroutine
-					return
-				}
-
+			for msg := range msgChan {
 				timestamp := time.Now().Format("15:04:05")
 
-				// Handle messages differently based on topic
-				switch msg.Topic {
-				case "security":
-					fmt.Printf("🔒 [%s] SECURITY ALERT: %s\n", timestamp, msg.Message)
+				switch topic {
+				case "system":
+					if evt, ok := msg.Payload.(SystemEvent); ok {
+						fmt.Printf("🖥️ [%s] SYSTEM: %s - %s (%s)\n",
+							timestamp, evt.Action, evt.Status, evt.Source)
+					}
 
-					// Apply additional security-specific logic
-					if strings.Contains(msg.Message, "Failed login") {
-						fmt.Println("⚠️  Potential breach attempt detected!")
+				case "security":
+					if evt, ok := msg.Payload.(SecurityEvent); ok {
+						fmt.Printf("🔒 [%s] SECURITY: %s by %s from %s (%s)\n",
+							timestamp, evt.Action, evt.Username, evt.IPAddress, evt.Source)
 					}
 
 				case "performance":
-					fmt.Printf("📊 [%s] PERFORMANCE: %s\n", timestamp, msg.Message)
-
-					// Extract metrics if present
-					if strings.Contains(msg.Message, "CPU usage") {
-						parts := strings.Split(msg.Message, ":")
-						if len(parts) > 1 {
-							fmt.Printf("System load detected at%s\n", parts[1])
-						}
+					if evt, ok := msg.Payload.(PerformanceMetric); ok {
+						fmt.Printf("📊 [%s] METRIC: %s = %.2f%s (%s)\n",
+							timestamp, evt.Metric, evt.Value, evt.Unit, evt.Source)
 					}
 
 				case "errors":
-					fmt.Printf("❌ [%s] ERROR: %s\n", timestamp, msg.Message)
-
-				default:
-					fmt.Printf("ℹ️ [%s] [%s] %s\n", timestamp, msg.Topic, msg.Message)
+					if evt, ok := msg.Payload.(ErrorEvent); ok {
+						fmt.Printf("❌ [%s] ERROR[%d]: %s - %s (%s)\n",
+							timestamp, evt.Code, evt.Description, evt.Severity, evt.Source)
+					}
 				}
-
-			case <-done:
-				// Exit signal received
-				fmt.Println("Message processor shutting down")
-				return
 			}
-		}
-	}()
 
-	// Publish messages with different patterns
-	go func() {
-		// System messages - periodic updates
-		for i := 1; i <= 3; i++ {
-			ps.Publish("system", fmt.Sprintf("System check %d completed", i))
-			time.Sleep(1 * time.Second)
-		}
-	}()
+			fmt.Printf("Channel for topic '%s' closed\n", topic)
+		}(topic, ch)
+	}
 
-	go func() {
-		// Security alerts - random patterns
-		alerts := []string{
-			"Failed login attempt detected from IP 192.168.1.254",
-			"Configuration file accessed by user admin",
-			"New user account created: operator",
-		}
+	// Publish different types of events
+	now := time.Now()
 
-		for _, alert := range alerts {
-			ps.Publish("security", alert)
-			time.Sleep(1500 * time.Millisecond)
-		}
-	}()
+	// System events
+	ps.Publish("system", SystemEvent{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "kernel"},
+		Action:    "System startup",
+		Status:    "completed",
+	})
 
-	go func() {
-		// Performance metrics
-		metrics := map[string]int{
-			"CPU usage":     65,
-			"Memory usage":  78,
-			"Disk I/O":      45,
-			"Network usage": 30,
-		}
+	ps.Publish("system", SystemEvent{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "scheduler"},
+		Action:    "Job processing",
+		Status:    "in progress",
+	})
 
-		for metric, value := range metrics {
-			ps.Publish("performance", fmt.Sprintf("%s: %d%%", metric, value))
-			time.Sleep(800 * time.Millisecond)
-		}
-	}()
+	// Security events
+	ps.Publish("security", SecurityEvent{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "auth-service"},
+		IPAddress: "192.168.1.254",
+		Username:  "admin",
+		Action:    "Login attempt",
+	})
 
-	go func() {
-		// Simulate error conditions
-		time.Sleep(3 * time.Second)
-		ps.Publish("errors", "Database connection timeout")
-		time.Sleep(1 * time.Second)
-		ps.Publish("errors", "API rate limit exceeded")
-	}()
+	ps.Publish("security", SecurityEvent{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "user-service"},
+		IPAddress: "10.0.0.1",
+		Username:  "system",
+		Action:    "Permission change",
+	})
 
-	// Run for a while then close gracefully
-	time.Sleep(6 * time.Second)
-	fmt.Println("\nInitiating graceful shutdown...")
+	// Performance metrics
+	ps.Publish("performance", PerformanceMetric{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "monitor-service"},
+		Metric:    "CPU Usage",
+		Value:     65.5,
+		Unit:      "%",
+	})
 
-	// Signal all goroutines to stop
-	close(done)
+	ps.Publish("performance", PerformanceMetric{
+		BaseEvent: BaseEvent{Timestamp: now, Source: "monitor-service"},
+		Metric:    "Memory",
+		Value:     2.45,
+		Unit:      "GB",
+	})
+
+	// Error events
+	ps.Publish("errors", ErrorEvent{
+		BaseEvent:   BaseEvent{Timestamp: now, Source: "database"},
+		Code:        5001,
+		Description: "Connection timeout",
+		Severity:    "high",
+	})
+
+	ps.Publish("errors", ErrorEvent{
+		BaseEvent:   BaseEvent{Timestamp: now, Source: "api-gateway"},
+		Code:        4029,
+		Description: "Rate limit exceeded",
+		Severity:    "medium",
+	})
+
+	// Wait briefly to ensure message processing
+	time.Sleep(time.Second)
 
 	// Close the PubSub system
 	if err := ps.Close(); err != nil {
 		fmt.Printf("Error during shutdown: %v\n", err)
 	}
 
-	// Close the collector channel after PubSub is closed
-	close(allMessages)
-
+	// Wait for all goroutines to finish
 	wg.Wait()
 	fmt.Println("All subscribers have terminated successfully")
 }
@@ -400,13 +501,16 @@ The library provides specific error types to handle different scenarios:
 
 ## Best Practices
 
-- Create a new PubSub instance for each logical separation of concerns
-- Always check for errors when subscribing or publishing
-- Use `defer` to ensure proper closure of the PubSub system
-- Implement proper context handling for HTTP-based implementations
-- Consider using channel buffering for high-throughput scenarios
+- Create a new PubSub instance for each logical separation of concerns.
+- Always check for errors when subscribing or publishing.
+- Use `defer` to ensure proper closure of the PubSub system.
+- Implement proper context handling for HTTP-based implementations.
+- Consider using channel buffering for high-throughput scenarios.
 - Use a termination signal (like a `done` channel) to cleanly shut down
-  goroutines
+  goroutines.
+- Choose appropriate generic types based on your use case:
+  - Use specific types like `string` or custom structs for type safety.
+  - Use `interface{}` or `any` when flexibility is needed.
 
 ## Thread Safety
 
