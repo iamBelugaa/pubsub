@@ -53,10 +53,9 @@ func (ps *PubSub[T]) Subscribe(topic string) (<-chan *Message[T], error) {
 
 	// Create a new subscriber channel with the configured buffer size.
 	subscriber := make(chan *Message[T], ps.config.channelSize)
-	subscribers := ps.subscriptions[topic]
 
 	// Append the new subscriber to the list of subscribers for the topic.
-	ps.subscriptions[topic] = append(subscribers, subscriber)
+	ps.subscriptions[topic] = append(ps.subscriptions[topic], subscriber)
 	return subscriber, nil
 }
 
@@ -82,7 +81,7 @@ func (ps *PubSub[T]) Publish(topic string, msg T) error {
 		select {
 		case ch <- &message:
 		default:
-			fmt.Printf("Failed to send message for Topic : %s - %+v\n", topic, message)
+			fmt.Printf("Failed to send message for Topic : %s - %#v\n", topic, message)
 		}
 	}
 
