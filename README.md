@@ -1,23 +1,17 @@
 # Go PubSub
 
 A lightweight, in-memory Publish-Subscribe (PubSub) system written in Go
-leveraging Go's powerful concurrency model with channels. This library enables
-multiple subscribers to listen to topics and receive messages asynchronously.
+leveraging Go's powerful concurrency model with channels.
 
 ## Features
 
-- Simple and efficient PubSub implementation built on Go's concurrency
-  primitives.
-- Support for multiple subscribers per topic.
-- Structured message delivery with topic information included.
-- Thread-safe operations with proper locking mechanisms.
-- Graceful shutdown capabilities for safe channel closure.
 - Generic support for any payload type.
+- Support for multiple subscribers per topic.
 
 ## Installation
 
 ```sh
-go get github.com/iamNilotpal/pubsub
+go get github.com/iamBelugaa/pubsub
 ```
 
 ## Implementation Details
@@ -83,7 +77,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/iamNilotpal/pubsub"
+	"github.com/iamBelugaa/pubsub"
 )
 
 func main() {
@@ -152,7 +146,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iamNilotpal/pubsub"
+	"github.com/iamBelugaa/pubsub"
 )
 
 // Define a custom message type
@@ -225,7 +219,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iamNilotpal/pubsub"
+	"github.com/iamBelugaa/pubsub"
 )
 
 // Define a message structure for updates
@@ -303,192 +297,6 @@ func main() {
 }
 ```
 
-### Complex Example: Multi-Topic Monitoring System
-
-This example showcases a more comprehensive implementation with multiple topics
-and different message types:
-
-```go
-package main
-
-import (
-	"fmt"
-	"sync"
-	"time"
-
-	"github.com/iamNilotpal/pubsub"
-)
-
-// Define different event types
-type BaseEvent struct {
-	Timestamp time.Time
-	Source    string
-}
-
-type SystemEvent struct {
-	BaseEvent
-	Action string
-	Status string
-}
-
-type SecurityEvent struct {
-	BaseEvent
-	IPAddress string
-	Username  string
-	Action    string
-}
-
-type PerformanceMetric struct {
-	BaseEvent
-	Metric string
-	Value  float64
-	Unit   string
-}
-
-type ErrorEvent struct {
-	BaseEvent
-	Code        int
-	Description string
-	Severity    string
-}
-
-type Event any
-
-func main() {
-	// Create PubSub with Event to handle different event types
-	ps := pubsub.New[Event]()
-	var wg sync.WaitGroup
-
-	// Define topics
-	topics := []string{"system", "security", "performance", "errors"}
-
-	// Subscribe to all topics
-	topicChannels := make(map[string]<-chan *pubsub.Message[Event])
-
-	for _, topic := range topics {
-		ch, err := ps.Subscribe(topic)
-		if err != nil {
-			fmt.Printf("Failed to subscribe to %s: %v\n", topic, err)
-			continue
-		}
-		topicChannels[topic] = ch
-	}
-
-	// Process messages from each topic
-	for topic, ch := range topicChannels {
-		wg.Add(1)
-		go func(topic string, msgChan <-chan *pubsub.Message[Event]) {
-			defer wg.Done()
-
-			for msg := range msgChan {
-				timestamp := time.Now().Format("15:04:05")
-
-				switch topic {
-				case "system":
-					if evt, ok := msg.Payload.(SystemEvent); ok {
-						fmt.Printf("🖥️ [%s] SYSTEM: %s - %s (%s)\n",
-							timestamp, evt.Action, evt.Status, evt.Source)
-					}
-
-				case "security":
-					if evt, ok := msg.Payload.(SecurityEvent); ok {
-						fmt.Printf("🔒 [%s] SECURITY: %s by %s from %s (%s)\n",
-							timestamp, evt.Action, evt.Username, evt.IPAddress, evt.Source)
-					}
-
-				case "performance":
-					if evt, ok := msg.Payload.(PerformanceMetric); ok {
-						fmt.Printf("📊 [%s] METRIC: %s = %.2f%s (%s)\n",
-							timestamp, evt.Metric, evt.Value, evt.Unit, evt.Source)
-					}
-
-				case "errors":
-					if evt, ok := msg.Payload.(ErrorEvent); ok {
-						fmt.Printf("❌ [%s] ERROR[%d]: %s - %s (%s)\n",
-							timestamp, evt.Code, evt.Description, evt.Severity, evt.Source)
-					}
-				}
-			}
-
-			fmt.Printf("Channel for topic '%s' closed\n", topic)
-		}(topic, ch)
-	}
-
-	// Publish different types of events
-	now := time.Now()
-
-	// System events
-	ps.Publish("system", SystemEvent{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "kernel"},
-		Action:    "System startup",
-		Status:    "completed",
-	})
-
-	ps.Publish("system", SystemEvent{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "scheduler"},
-		Action:    "Job processing",
-		Status:    "in progress",
-	})
-
-	// Security events
-	ps.Publish("security", SecurityEvent{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "auth-service"},
-		IPAddress: "192.168.1.254",
-		Username:  "admin",
-		Action:    "Login attempt",
-	})
-
-	ps.Publish("security", SecurityEvent{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "user-service"},
-		IPAddress: "10.0.0.1",
-		Username:  "system",
-		Action:    "Permission change",
-	})
-
-	// Performance metrics
-	ps.Publish("performance", PerformanceMetric{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "monitor-service"},
-		Metric:    "CPU Usage",
-		Value:     65.5,
-		Unit:      "%",
-	})
-
-	ps.Publish("performance", PerformanceMetric{
-		BaseEvent: BaseEvent{Timestamp: now, Source: "monitor-service"},
-		Metric:    "Memory",
-		Value:     2.45,
-		Unit:      "GB",
-	})
-
-	// Error events
-	ps.Publish("errors", ErrorEvent{
-		BaseEvent:   BaseEvent{Timestamp: now, Source: "database"},
-		Code:        5001,
-		Description: "Connection timeout",
-		Severity:    "high",
-	})
-
-	ps.Publish("errors", ErrorEvent{
-		BaseEvent:   BaseEvent{Timestamp: now, Source: "api-gateway"},
-		Code:        4029,
-		Description: "Rate limit exceeded",
-		Severity:    "medium",
-	})
-
-	// Wait briefly to ensure message processing
-	time.Sleep(time.Second)
-
-	// Close the PubSub system
-	if err := ps.Close(); err != nil {
-		fmt.Printf("Error during shutdown: %v\n", err)
-	}
-
-	// Wait for all goroutines to finish
-	wg.Wait()
-	fmt.Println("All subscribers have terminated successfully")
-}
-```
-
 ## Error Handling
 
 The library provides specific error types to handle different scenarios:
@@ -498,35 +306,7 @@ The library provides specific error types to handle different scenarios:
 - `ErrPubSubClosed`: Returned when attempting operations on a closed PubSub
   instance
 
-## Best Practices
-
-- Create a new PubSub instance for each logical separation of concerns.
-- Always check for errors when subscribing or publishing.
-- Use `defer` to ensure proper closure of the PubSub system.
-- Implement proper context handling for HTTP-based implementations.
-- Consider using channel buffering for high-throughput scenarios.
-- Use a termination signal (like a `done` channel) to cleanly shut down
-  goroutines.
-- Choose appropriate generic types based on your use case:
-  - Use specific types like `string` or custom structs for type safety.
-  - Use `interface{}` or `any` when flexibility is needed.
-
-## Thread Safety
-
-All operations on the PubSub instance are thread-safe, utilizing a read-write
-mutex to coordinate access to the subscription map.
-
-## Performance Considerations
-
-The PubSub system is designed for in-memory operations within a single process.
-For distributed systems requiring cross-service communication, consider using
-specialized message brokers like RabbitMQ, Kafka, or NATS.
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
